@@ -1,0 +1,152 @@
+= Rift
+
+[quote]
+**Rift Realtime Protocol (Rift/1)** — a modern, real-time bidirectional messaging protocol built on WebSocket, designed to replace raw `JSON.stringify`-over-socket patterns with typed frames, explicit delivery semantics, and production-grade session management.
+
+== Why Rift?
+
+[cols="1,1,1"]
+|===
+| Feature | Socket.IO | Rift/1
+
+| Framing
+| Custom packet protocol
+| Typed frame envelope (`C`/`D`/`A`/`F`/`E`)
+
+| Encoding
+| JSON only
+| CBOR + JSON negotiated at handshake
+
+| Delivery guarantees
+| Fire-and-forget
+| 6 delivery modes (AtMostOnce → DurableOrdered)
+
+| Session resume
+| Basic sid cookie
+| Epoch-based resume with per-topic offset tracking
+
+| Backpressure
+| None
+| 6 strategies + token-bucket rate limiting
+
+| Message types
+| Event only
+| 8 classes (Event, Command, Reply, State, Datagram, Stream, Snapshot, System)
+
+| Topics
+| String namespace
+| Profiles with retention, ordering, subscriber/publisher limits
+|===
+
+== Connection Lifecycle
+
+```text
+Client                              Server
+  │                                     │
+  │──── Hello ───────────────────────>│  capabilities + auth
+  │<─── Welcome ──────────────────────│  session_id + codec
+  │   [optional Resume exchange]        │
+  │<─── Ready ───────────────────────│  limits + heartbeat
+  │                                     │
+  │ ═══ bidirectional data frames ════  │
+  │                                     │
+  │──── Close ───────────────────────>│  (either side)
+```
+
+== Repositories
+
+[cols="1,2"]
+|===
+| Repository | Description
+
+| https://github.com/rift-proto/rifts[rifts]
+| Rust server implementation. Standalone WebSocket + framework adapters (Axum, Actix Web, Warp, Ntex).
+
+| https://github.com/rift-proto/rift-ts[rift-ts]
+| TypeScript client SDK for browser and Node.js.
+|===
+
+== Protocol Highlights
+
+* **Typed frame envelope** — single `Frame` structure for all wire traffic, with priority (6 levels), 10 flag bits, and routing/correlation metadata
+* **CBOR + JSON codec negotiation** — binary encoding for production, JSON for debugging, negotiated once at handshake
+* **8 message classes** — Event, Command (RPC), Reply, State (latest-only), Datagram (best-effort), Stream (ordered segments), Snapshot, System
+* **Topic profiles** — per-topic retention policy (None / TTL / Count / Size / Durable / Latest), ordering policy (None / Connection / Publisher / Topic / Key / Causal), and rate limits
+* **Session resume** — transport-agnostic logical sessions with epoch validation and per-topic offset replay
+* **Acknowledgement system** — 9 status levels (Received → Processed), 6 policies (None → Application)
+* **Flow control** — backpressure with 6 strategies (Pause / DropVolatile / CoalesceState / Downgrade / Disconnect / SnapshotLater) + token-bucket rate limiter
+* **Heartbeat** — ping/pong with jitter to prevent thundering-herd, configurable missed-pong threshold
+* **30 error codes** and **16 close codes** — structured, machine-readable, with retryability semantics
+
+== TPL Specifications
+
+The complete Rift/1 wire protocol is specified as **TPLs** (Technical Protocol Listings) in the `tpl/` directory. See link:tpl/README.adoc[tpl/README.adoc] for the reading guide.
+
+[cols="1,2,1"]
+|===
+| TPL | Title | Status
+
+| link:tpl/TPL-FRAME-1.adoc[TPL-FRAME-1]
+| Frame Envelope
+| `mandatory`
+
+| link:tpl/TPL-CODEC-1.adoc[TPL-CODEC-1]
+| Codec Negotiation
+| `mandatory`
+
+| link:tpl/TPL-MSG-1.adoc[TPL-MSG-1]
+| Message Types
+| `mandatory`
+
+| link:tpl/TPL-TOPIC-1.adoc[TPL-TOPIC-1]
+| Topic Profiles
+| `mandatory`
+
+| link:tpl/TPL-SUB-1.adoc[TPL-SUB-1]
+| Subscribe Modes
+| `mandatory`
+
+| link:tpl/TPL-ACK-1.adoc[TPL-ACK-1]
+| Acknowledgement System
+| `mandatory`
+
+| link:tpl/TPL-SESSION-1.adoc[TPL-SESSION-1]
+| Session & Resume
+| `mandatory`
+
+| link:tpl/TPL-HANDSHAKE-1.adoc[TPL-HANDSHAKE-1]
+| Hello / Welcome / Ready Handshake
+| `mandatory`
+
+| link:tpl/TPL-AUTH-1.adoc[TPL-AUTH-1]
+| Authentication
+| `mandatory`
+
+| link:tpl/TPL-FLOW-1.adoc[TPL-FLOW-1]
+| Flow Control
+| `mandatory`
+
+| link:tpl/TPL-HEARTBEAT-1.adoc[TPL-HEARTBEAT-1]
+| Heartbeat
+| `mandatory`
+
+| link:tpl/TPL-ERROR-1.adoc[TPL-ERROR-1]
+| Error Codes
+| `mandatory`
+
+| link:tpl/TPL-CLOSE-1.adoc[TPL-CLOSE-1]
+| Close Codes
+| `mandatory`
+
+| link:tpl/TPL-VERSION-1.adoc[TPL-VERSION-1]
+| Protocol Versioning
+| `mandatory`
+
+| link:tpl/TPL-CONFIG-1.adoc[TPL-CONFIG-1]
+| Server Configuration
+| `optional`
+|===
+
+== License
+
+Dual-licensed under MIT or Apache-2.0.
