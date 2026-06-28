@@ -5,38 +5,108 @@
 
 == Why Rift?
 
-[cols="1,1,1"]
-|===
-| Feature | Socket.IO | Rift/1
+=== Built for AI Realtime Interaction
 
-| Framing
-| Custom packet protocol
-| Typed frame envelope (`C`/`D`/`A`/`F`/`E`)
+Rift is purpose-built for the AI streaming era. LLM inference, agent orchestration, and
+real-time collaboration require more than raw WebSocket — they need typed message classes,
+stream-aware backpressure, and session resilience that survives network hiccups mid-generation.
+
+* **Stream segments** (`StreamSegment`) — native support for ordered, chunked delivery.
+  Perfect for LLM token streaming, file transfers, and long-running agent tasks.
+  Each segment carries a monotonic `seq` and a `final_segment` flag — no manual framing needed.
+* **Command / Reply RPC** — request-response over the same connection with `correlation_id`,
+  timeout control, and idempotency keys. Ideal for AI inference calls and tool-use round trips.
+* **Backpressure control** — AI responses can be arbitrarily long. Rift's 6 backpressure
+  strategies (pause, drop volatile, coalesce state, downgrade, disconnect, snapshot-later)
+  prevent fast producers from overwhelming slow consumers.
+* **Session resume** — epoch-based reconnect with per-topic offset replay.
+  An AI conversation survives a network drop and resumes exactly where it left off,
+  no context lost.
+* **Datagram class** — fire-and-forget messages for typing indicators, cursor positions,
+  and streaming status updates. Dropped first under backpressure — never blocks the main stream.
+* **State + Presence** — latest-only state messages for collaborative editing, agent status,
+  and live cursors. Presence tracks who's online with automatic TTL expiry.
+
+=== Comparison with Socket.IO and SSE
+
+[cols="1,1,1,1"]
+|===
+| Feature | SSE | Socket.IO | Rift/1
+
+| Direction
+| Server → Client only
+| Bidirectional
+| Bidirectional
+
+| Transport
+| HTTP/1.1 or HTTP/2
+| WebSocket + polling fallback
+| WebSocket (native)
 
 | Encoding
+| Text only (UTF-8)
 | JSON only
-| CBOR + JSON negotiated at handshake
+| **CBOR + JSON** negotiated
+
+| Stream segments
+| Ad-hoc `data:` lines
+| Manual chunking
+| **`StreamSegment`** with seq, final_segment, schema
+
+| RPC / Request-Reply
+| Not possible
+| Manual correlation
+| **`Command` + `Reply`** with correlation_id, timeout, idempotency
 
 | Delivery guarantees
+| None (fire-and-forget)
 | Fire-and-forget
-| 6 delivery modes (AtMostOnce → DurableOrdered)
+| **6 modes** (AtMostOnce → DurableOrdered)
 
 | Session resume
+| Auto-reconnect, no state
 | Basic sid cookie
-| Epoch-based resume with per-topic offset tracking
+| **Epoch-based** resume with per-topic offset tracking
 
 | Backpressure
 | None
-| 6 strategies + token-bucket rate limiting
+| None
+| **6 strategies** + token-bucket rate limiting
 
 | Message types
 | Event only
-| 8 classes (Event, Command, Reply, State, Datagram, Stream, Snapshot, System)
+| Event only
+| **8 classes** (Event, Command, Reply, State, Datagram, Stream, Snapshot, System)
 
-| Topics
+| Topic management
+| URL path
 | String namespace
-| Profiles with retention, ordering, subscriber/publisher limits
+| **Profiles** with retention, ordering, rate limits
+
+| Binary support
+| No
+| No (JSON string)
+| **CBOR native** — 30-50% smaller payloads for structured data
+
+| AI streaming fit
+| Workable but fragile
+| Adequate
+| **First-class** — Stream segments, Command/Reply RPC, backpressure
+
+| Connection lifecycle
+| Implicit
+| Basic connect/disconnect
+| **Hello → Welcome → Resume → Ready → Active → Draining → Closed**
 |===
+
+SSE is a fine choice for simple server-push notifications, but it breaks down for
+bidirectional AI agent workflows. Socket.IO adds bidirectional messaging but lacks
+stream-aware delivery, backpressure, and typed message semantics.
+
+Rift gives you the best of both worlds: WebSocket efficiency with protocol-level
+guarantees purpose-built for AI realtime — streaming tokens, agent tool calls,
+multi-turn conversations that survive reconnection, and backpressure that keeps
+fast models from overwhelming slow browsers.
 
 == Connection Lifecycle
 
